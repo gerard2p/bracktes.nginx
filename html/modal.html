@@ -1,0 +1,41 @@
+<style>
+    #hostlist input {
+        outline: none;
+        background-color: transparent;
+        border: dashed 3px #76B8CF;
+        padding: 4px;
+        width: 90%;
+    }
+    
+    #hostlist input[disabled=disabled] {
+        border: none;
+        padding: 0px;
+        cursor: default;
+    }
+</style>
+<div id='templates_modal' class='template modal'>
+    <div class='modal-header'>
+        <button data-button-id="cancel" type='button' class='close' data-dismiss='modal'><span aria-hidden='true'>&times;</span></button>
+        <h1 class='dialog-title'>{{TITLE_H1}}</h1>
+    </div>
+    <p style='display: none; color: red; font-weight: bold; padding: 10px;' id='templates_error'>{{NO_FILE_OPEN_ERROR}}</p>
+    <div class='modal-body'>
+        <p style='display: none; color: red; font-weight: bold;' id='templates_warning'>{{CONTENT_ERROR}}</p>
+        <table class="table table-hover" id="hostlist">
+            <thead>
+                <tr>
+                    <th width="25%">Host</th>
+                    <th>Url</th>
+                    <th width="25%" />
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <!-- Standard button -->
+        <button id="ADD" type="button" class="btn-success">{{ADD_BUTTON}}</button>
+    </div>
+    <div class='modal-footer'>
+        <a href='#' class='dialog-button btn primary' data-button-id="ok" data-dismiss='modal'>{{ACCEPT_BUTTON}}</a>
+    </div>
+</div>
