@@ -24,5 +24,6 @@
 /*global define, brackets, $ */
 
 define({
-    'EXTENSION_NAME': "DbModel"
+    'MAIN':'Nginx Config',
+    'EXTENSION_NAME': "Nginx Conf"
 });

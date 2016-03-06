@@ -1,0 +1,88 @@
+#brackets-nginx-icon {
+    background-image: url(resources/images/nginx.png);
+    background-size: 24px 24px;
+}
+
+#nginx_modal menu a.active {
+    border-top: 2px solid blueviolet;
+    font-weight: bold;
+    color: cornflowerblue;
+    background-color: #FFF;
+}
+#nginx_modal menu a {
+    padding: 5px;
+    background: white;
+    border-radius: 10px 0px;
+    text-decoration: none;
+    color: #AAA;
+    background-color: #EEE;
+}
+
+#nginx_modal menu {
+    margin: 0px;
+    padding: 0px;
+}
+
+#nginx_modal .property {
+    margin-bottom: 5px;
+    padding: 5px;
+}
+
+#nginx_modal .property span {
+    width: 120px;
+    display: inline-block;
+    border-bottom: 1px #666 dotted;
+    box-sizing: border-box;
+}
+
+#nginx_modal .property input {
+    padding: 1px 3px;
+    outline: none;
+    border: none;
+    width: 200px;
+    border-bottom: 2px #CCC dashed;
+}
+
+#nginx_modal .group {
+    padding: 8px;
+    border: 1px darkgray solid;
+    margin: 0px;
+    position: relative;
+    margin-top: 5px;
+    margin-bottom: 10px;
+    border-left: none;
+    border-right: none;
+    padding-left: 15px;
+}
+
+#nginx_modal .group .group {
+    border: 1px darkgray solid;
+}
+
+#nginx_modal .group header {
+    display: inline-block;
+    top: -10px;
+    position: absolute;
+    background: #47484b;
+    left: 5px;
+    font-size: 14px;
+}
+
+#nginx_modal .server button {
+    position: absolute;
+    right: 0px;
+    top: 0px;
+    width: 15px;
+    height: 15px;
+}
+
+#nginx_modal .server {
+    border: 1px gray dashed;
+    margin: 3px 3px 15px 3px;
+    position: relative;
+    min-height: 15px;
+}
+
+#nginx_model menu>a.active {
+    background-color: cornflowerblue;
+}
