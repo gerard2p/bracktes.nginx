@@ -24,70 +24,51 @@ define(function (require, exports, module) {
         panelTemplate = require('text!html/panel.html'),
         toolbarTemplate = require('text!html/toolbar.html');
     var template = null,
+        dialog = null,
         exec = null,
+        tooltip = require("resources/js/bootstrap.min"),
         $icon = $('<a href="#" title="' + Strings.EXTENSION_NAME + '" id="brackets-nginx-icon"></a>');
     var $panel, $iframe, panel, $bodypanel;
+
     ExtensionUtils.loadStyleSheet(module, 'brackets-nginx.css');
-    /*
-        function _resizeIframe() {
-            if ($iframe) {
-                var iframeWidth = panel.$panel.innerWidth();
-                $iframe.attr("width", iframeWidth + "px");
-            }
-        }
-        function _loadDoc(doc, isReload) {
-            if (doc && $iframe) {
-                var docText = doc.getText(),
-                    scrollPos = 0,
-                    bodyText = "",
-                    yamlRegEx = /^-{3}([\w\W]+?)(-{3})/,
-                    yamlMatch = yamlRegEx.exec(docText);
+    //ExtensionUtils.loadStyleSheet(module, 'resources/css/bootstrap.min.css');
+    ExtensionUtils.loadStyleSheet(module, 'resources/css/font-awesome.min.css');
 
-                // Parse markdown into HTML
-                //bodyText = marked(docText);
-
-                // Show URL in link tooltip
-                bodyText = docText.replace(/(href=\"([^\"]*)\")/g, "$1 title=\"$2\"");
-
-                // Convert protocol-relative URLS
-                bodyText = bodyText.replace(/src="\/\//g, "src=\"http://");
-
-                if (isReload) {
-                    $iframe[0].contentDocument.body.innerHTML = bodyText;
-                } else {
-                    bodyText = Mustache.render(require('text!html/preview.html'), {
-                        baseUrl: window.location.protocol + "//" + FileUtils.getDirectoryPath(doc.file.fullPath),
-                        bodyText: bodyText
-                    });
-                    $iframe.attr("srcdoc", bodyText);
-                    // Remove any existing load handlers
-                    $iframe.off("load");
-                    $iframe.load(function () {
-                        // Open external browser when links are clicked
-                        // (similar to what brackets.js does - but attached to the iframe's document)
-                        //$iframe[0].contentDocument.body.addEventListener("click", _handleLinkClick, true);
-
-                        // Sync scroll position (if needed)
-                        if (!isReload) {
-                            //_editorScroll();
-                        }
-
-                        // Make sure iframe is showing
-                        $iframe.show();
-                    });
-                }
-            }
-        }
-    */
+    var location = ["proxy_pass", "fastcgi_pass", "uwsgi_pass", "scgi_pass", "memcached_pass"];
+    var server = ["log_not_found"];
     var nginx_conf = "";
     var nginx = false;
     var nginx_configuration = null;
+    var documentation = null;
+    var includes = {},
+        spawn;
 
     function renderHTML(JSObject, property) {
         var $div = $('<div class="property"/>');
         $div.append($('<span>' + property + '</span>'));
         var $input = $("<input/>");
+        try {
+            var directive = documentation.directives[property];
+            if ((typeof directive.values) == "string") {
+                $input.attr('title', directive.values);
+            } else {
+                $input.attr('title', directive.values.join(','));
+            }
+            $input.attr('data-info', directive.tooltip);
+            $input.mouseenter(function () {
+                $bodypanel.find("#information").html($(this).attr('data-info'));
+            });
+            //$input.tooltip();
+        } catch (e) {
+            console.log(property);
+        }
+        var $remove = $('<button data-id="removeprop" class="fa fa-trash"/>');
+        $remove.click(function () {
+            delete JSObject[property];
+            $div.remove();
+        });
         $div.append($input);
+        $div.append($remove);
         bind($input, JSObject, property);
         return $div;
     }
@@ -100,148 +81,312 @@ define(function (require, exports, module) {
         });
     }
 
-    function addTab($panel, src) {
-        $bodypanel.find('menu').append($('<a>' + src + '</a>'));
+    function TABBED() {
+        var $tabbed = $('<section data-id="tabpanel" class="panel"><menu></menu></section>');
+        $tabbed.on('click', 'a', function (e) {
+            if ($(this).hasClass('active')) {
+                return false;
+            }
+            e.stopPropagation();
+            $tabbed.find('>menu>a').removeClass("active");
+            $(this).addClass("active");
+            $tabbed.find('>[data-id=item]').hide(200);
+            $tabbed.find('[data-id=item]').eq($tabbed.find('>menu>a').index(this)).show(200);
+            return false;
+        });
+        return $tabbed;
+    }
+    var commands = {
+        win: {
+            permission: "icacls C:\ProgramData\chocolatey\lib\nginx\tools\nginx-1.8.0\conf\nginx.conf /q /c /t /grant Usuarios:W",
+            read: "type"
+
+        },
+        mac: {
+            read: "cat"
+        }
+    }
+    var os = "";
+
+    function addTab($main, src) {
+
+        var $tabbed = TABBED();
+        $tabbed.attr('data-id', 'item');
+        $main.find('menu').append($('<a>' + src.split("/")[1] + '</a>'));
         exec("C:\\", "cat", [nginx_conf.replace('nginx.conf', "") + src]).done(function (res) {
-            var $panel = $('<div class="panel"/>');
-            parser.toJson(res).forEach(function (server) {
-                var $server = $('<div class="server"/>');
-                $server.append($('<button></button>'));
-                $panel.append(renderObject($server, {
-                    data: server
-                }, 'data'));
+            var JSObject = parser.toJson(res);
+            JSObject = JSObject.server instanceof Array ? JSObject.server : [JSObject.server];
+            includes[src.split("/")[1]] = JSObject;
+            var $panel = $('<div class="server"  />');
+            JSObject.forEach(function (server) {
+                var $server = $('<div class="server" data-context="server" data-id="item"/>');
+                $tabbed.append(renderObject($server, server));
+                $tabbed.find(">menu").append($("<a>Server" + $tabbed.find(">menu>a").length + "</a>"));
             });
-            $panel.hide();
-            $bodypanel.find('section').append($panel);
-            $bodypanel.find(".server *").hide();
-            $bodypanel.find(".server button").show();
+            $main.find('section').append($tabbed);
+            $tabbed.find('>menu>a').eq(0).addClass('active');
+            $tabbed.find('>[data-id=item]').hide();
+            $tabbed.find('>[data-id=item]').eq(0).show();
+            $tabbed.hide();
+            $tabbed.find('>menu>a').append($('<button class="fa fa-trash removeServer"/>'));
+            $tabbed.on('click', '.removeServer', function (e) {
+                e.stopPropagation();
+                var index = $tabbed.find('>menu>a .removeServer').index(this);
+                $tabbed.find('>menu>a').eq(index).remove();
+                $tabbed.find('>div').eq(index).remove();
+                delete JSObject[index];
+                $tabbed.find('>menu>a').eq(0).trigger('click');
+                return false;
+            });
         });
     }
 
-    function renderObject($panel, JSObject, property) {
-        for (var prop in JSObject[property]) {
-            switch (typeof JSObject[property][prop]) {
+    function renderArray($panel, JSObject) {
+        renderMenuArray($panel, JSObject);
+        for (var prop in JSObject) {
+            switch (typeof JSObject[prop]) {
             case "object":
-                var $obj = $('<div class="group"><header>' + prop + '</header></div>');
-                $panel.append(renderObject($obj, JSObject[property], prop));
+                $panel.append(renderObject($panel, JSObject[prop]));
                 break;
             case "string":
-                if (JSObject[property][prop].indexOf(".conf") > -1) {
-                    addTab($bodypanel, JSObject[property][prop]);
+                if (JSObject[prop].indexOf(".conf") > -1) {
+                    addTab($bodypanel, JSObject[prop]);
+                }
+                $panel.append(renderHTML(JSObject, prop));
+                break;
+            }
+        }
+        return $panel;
+    }
+
+    function renderObject($panel, JSObject) {
+        renderMenuOptionsFor($panel, JSObject);
+        for (var prop in JSObject) {
+            switch (typeof JSObject[prop]) {
+            case "object":
+                var $obj = $('<div class="group" ><header>' + prop + '</header></div>');
+                $obj.attr('data-context', prop);
+                if (JSObject[prop].__data != undefined) {
+                    $obj.append(renderHTML(JSObject[prop], "@name"));
+                    $panel.append(renderObject($obj, JSObject[prop].__data));
+                } else if (JSObject[prop] instanceof Array) {
+                    $panel.append(renderArray($obj, JSObject[prop]));
                 } else {
-                    $panel.append(renderHTML(JSObject[property], prop));
+                    $panel.append(renderObject($obj, JSObject[prop]));
+                }
+
+                break;
+            case "string":
+                if (JSObject[prop].indexOf(".conf") > -1) {
+                    addTab($bodypanel, JSObject[prop]);
+                } else {
+                    $panel.append(renderHTML(JSObject, prop));
                 }
                 break;
             }
         }
         return $panel;
     }
-    
-    function HTMLize(object) {
-        $bodypanel.append($('<section><menu><a class="active">' + Strings.MAIN + '</a></menu></section>'));
-        $panel = $('<div class="panel"/>');
-        $bodypanel.find('section').append($panel);
-        for (var prop in object) {
-            switch (typeof object[prop]) {
-            case "object":
-                var $obj = $('<div class="group"><header>' + prop + '</header></div>');
-                $panel.append(renderObject($obj, object, prop));
-                break;
-            case "string":
-                if (object[prop].indexOf(".conf") > -1) {
-                    addTab($bodypanel, object[prop]);
-                } else {
-                    $panel.append(renderHTML(object, prop));
-                }
-                break;
-            default:
-                console.log(typeof object[prop]);
-                break;
+
+    function contains(Object, prop) {
+        for (var p in Object) {
+            if (p == prop) {
+                return true;
             }
-
         }
+        return false;
+    }
 
-        $bodypanel.on('click', 'a', function () {
-            $bodypanel.find('menu a').removeClass("active");
-            $(this).addClass("active");
-            $bodypanel.find('section .panel').hide(200);
-            console.log($bodypanel.find('menu').index(this));
-            $bodypanel.find('section .panel').eq($bodypanel.find('menu a').index(this)).show(200);
+    function renderMenuArray($panel, JSObject) {
+        var $menu = $('<nav class="newproperties"/>');
+        $menu.append('<button data-id="add" class="fa fa-plus-square"/>');
+        $menu.on('click', '[data-id=add]', function () {
+            JSObject.push("");
+            $panel.append(renderHTML(JSObject, JSObject.length - 1));
         });
+        $panel.append($menu);
+    }
+
+    function renderMenuOptionsFor($panel, JSObject) {
+        var $menu = $('<nav class="newproperties"/>');
+        $menu.append('<button data-id="add" class="fa fa-plus-square"/>');
+        $menu.on('click', '[data-id=add]', function () {
+            var $div = $('<div class="property"/>');
+            //$combo=$('<span>' + property + '</span>');
+            var $combo = $('<select>');
+            for (var directiveName in documentation.byContext[$panel.attr('data-context')]) {
+                //.forEach(function(directive){
+                if (!contains(JSObject, directiveName)) {
+                    $combo.append($('<option value="' + directiveName + '">' + directiveName + '</option>'));
+                }
+            }
+            $combo.change(function () {
+                JSObject[$(this).val()] = "";
+                $panel.append(renderHTML(JSObject, $(this).val()));
+                $div.remove();
+            });
+            $div.append($combo);
+            var $input = $("<input/>");
+            $div.append($input);
+            $panel.append($div);
+            //bind($input, JSObject, property);
+        });
+        $panel.append($menu);
+    }
+
+    function HTMLize(object) {
+        var $tab = TABBED();
+        $tab.find('menu').html('<a class="active">' + Strings.MAIN + '</a>');
+        $bodypanel.append($tab);
+        $panel = $('<div class="panel" data-context="main" data-id="item" data-source="nginx.conf"/>');
+        $panel.html('<textarea>' + object + '</textarea>');
+        object.match(/include(.*\.conf)/igm).forEach(function (include) {
+            var src = include.replace(/include(.*\.conf)/igm, "$1").trim();
+
+            $bodypanel.find('menu').append($('<a>' + src.split("/")[1] + '</a>'));
+            exec("C:\\", "cat", [nginx_conf.replace('nginx.conf', "") + src]).done(function (res) {
+                var $page = $('<div class="panel" data-context="main" data-id="item" data-source="' + src + '"/>');
+                $page.html('<textarea>' + res + '</textarea>');
+                $tab.append($page);
+                $page.hide();
+            });
+        });
+        $tab.append($panel);
+        //renderObject($panel, object);
+
+        $tab.find('>[data-id=item]').hide();
+        $tab.find('>[data-id=item]').eq(0).show();
+
+        //$bodypanel.append($("<div id='information'/>"));
         $bodypanel.on('click', 'button', function () {
-            $(this.parentNode).find("*").toggle(300);
-            $(this).show(300);
+            $(this.parentNode).find(">*").toggle(300);
+            $(this).show(350);
         });
     }
 
-
     AppInit.appReady(function () {
-        /*var panelHTML = Mustache.render(panelTemplate, {
-            tools: Mustache.render(toolbarTemplate),
-            strings: Strings
-        });
-        panel = WorkspaceManager.createBottomPanel('gerard2perez.dbmodel.panel', $(panelHTML), 100);
-        $panel = $('#dbmodel-panel');
-        $iframe = $panel.find("#panel-markdown-preview-frame");
-        $panel.on("panelResizeUpdate", function (e, newSize) {
-            $iframe.attr("height", newSize);
-        });
-        window.setTimeout(_resizeIframe);
-
-
-                
-        Resizer.show($panel);*/
         require("Node").done(function (command) {
             exec = command.execute;
-            command.execute("C:\\", "nginx", ["-t"]).done(function (a, b) {
+            spawn = command.spawn;
+            exec("", "nginx", ["-t"]).done(function (a, b) {
                 nginx = true;
-
-                nginx_conf = a.match(/file (.*) syntax/)[1];
-
-
+                try {
+                    nginx_conf = a.match(/file (.*)nginx.conf test is successful/)[1];
+                } catch (e) {
+                    alert(a);
+                    return;
+                }
+                var getdata = $.Deferred();
+                exec("", "type", [nginx_conf.replace(/\//igm, "\\") + "nginx.conf"]).done(function (res) {
+                    nginx_conf = nginx_conf.replace(/\//igm, "\\");
+                    os = commands.win;
+                    getdata.resolve(res);
+                }).fail(function () {
+                    return exec("", "cat", [nginx_conf + "nginx.conf"]).done(function (res) {
+                        os = commands.mac;
+                        getdata.resolve(res);
+                    }).fail(function (err) {
+                        getdata.reject(err);
+                    });
+                });
+                getdata.done(function (res) {
+                    var getdata = $.Deferred();
+                    exec("", "echo", [res, '>', nginx_conf + "nginx.conf"]).done(function () {
+                        nginx_configuration = res;
+                        /*var servers = [];
+                        nginx_configuration = parser.toJson(res, servers);
+                        if (servers.length > 0) {
+                            var main_conf = parser.toConf(nginx_configuration);
+                            includes["main.conf"] = servers;
+                            var inc = {};
+                            var _inc = "";
+                            for (var include in includes) {
+                                _inc += "include\tincludes/" + include + ";\n";
+                                inc[include] = "";
+                                includes[include].forEach(function (server) {
+                                    inc[include] += "server {\n" + parser.toConf(server, "\t") + "}\n";
+                                });
+                            }
+                            main_conf = main_conf.replace(/includes_goes_here\n/igm, _inc);
+                            console.log(parser.toConf(nginx_configuration));
+                        }*/
+                    }).fail(function (err) {
+                        alert(err);
+                    });
+                    //HTMLize(nginx_configuration);
+                }).fail(function (err) {
+                    alert(err);
+                });
                 $icon.click(function () {
                     if (template == null) {
                         template = $(Mustache.render(require('text!html/modal.html'), Strings));
+                        documentation = require("documentation");
                     }
-                    Dialogs.showModalDialogUsingTemplate(template).done(function (result) {
-                        if (result == "ok") {
-                            fileContent = fileContent.split('\n');
-                            var res = [];
-                            fileContent.forEach(function (line) {
-                                if (line.indexOf("#") > -1) {
-                                    res.push(line);
-                                }
-                            });
-                            fileContent = res.join('\n');
-                            var hoststring = "";
-                            hosts.forEach(function (host) {
-                                hoststring += host.join('\t') + '\r\n';
-                            });
-                            fileContent += "\r\n" + hoststring;
-                            file.write(fileContent);
-                        }
+
+                    exec("", os.read, [nginx_conf + "nginx.conf"]).done(function (res) {
+                        nginx_configuration = res;
+                        dialog = Dialogs.showModalDialogUsingTemplate(template);
+                        dialog.done(function (result) {
+                            if (result == "ok") {
+                                template.find("[data-source]").each(function () {
+                                    var src = $(this).attr('data-source');
+                                    var text = $(this).find('textarea').val();
+                                    text = '"' + text.replace(/\n/igm, "\\r\\n").replace(/""/igm, "\"").replace(/\$/igm, "\\$") + '"';
+                                    exec("", "printf", [text, '>', nginx_conf + src]).done(function (data) {
+                                        exec("", "nginx", ["-t"]).done(function (data) {
+                                            exec("", "nginx", ["-s","reload"]).done(function (data) {});
+                                        });
+                                    }).fail(function (err) {
+                                        alert(err);
+                                    });
+                                });
+                            }
+                        });
+                        $bodypanel = $("#nginx_modal .modal-body");
+                        $bodypanel.html('');
+                        HTMLize(nginx_configuration);
+                    }).fail(function (err) {
+                        alert(err);
                     });
-                    $bodypanel = $("#nginx_modal .modal-body");
-                    $bodypanel.html('');
+                    //$textblock='<textarea>'+nginx_configuration+'</textarea>';
+                    //$bodypanel
+                    template.find('[name=test]').click(function () {
+                        exec("", "nginx", ["-t"]).always(function (a) {
+                            a.split('\n').forEach(function (line) {
+                                alert(line);
+                            });
+                        });
+                    });
+                    template.find('[name=start]').click(function () {
+                        exec("", "nginx", ["-s stop"]).always(function (b) {
+                            $icon.addClass('active');
+                            exec("", "nginx", [""]).always(function (a) {
+                                $icon.removeClass('active');
+                            });
+                        });
+
+                    });
+                    template.find('[name=stop]').click(function () {
+                        exec("", "nginx", ["-s stop"]).always(function () {
+                            $icon.removeClass('active');
+                        });
+
+                    });
                     setTimeout(function () {
                         $("#nginx_modal").css({
                             'z-index': 2000
                         });
                     }, 400);
-                    command.execute("C:\\", "cat", [nginx_conf]).done(function (res) {
-                        nginx_configuration = parser.toJson(res);
-                        HTMLize(nginx_configuration);
-                    });
                 }).appendTo('#main-toolbar .buttons');
-                /*
-                                nginx_conf = nginx_conf.replace('nginx.conf', "") + "/includes/brackets_servers.conf";
-                                command.execute("C:\\", "cat", [nginx_conf]).done(function (res) {
-                                    var servers = parser.toJson(res);
-                                    servers.forEach(function (server) {
-                                        console.log(JSON.stringify(server));
-                                    });
-                                });
-                */
+
+                $icon.addClass('active');
+                exec("", "nginx", ["-s", "reload"]).done(function (res) {
+                    if (res.indexOf("error") > -1) {
+                        exec("", "nginx", []).always(function (res) {
+                            $icon.removeClass('active');
+                        });
+                    }
+                });
             });
         });
     });

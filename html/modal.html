@@ -1,13 +1,16 @@
 <div id='nginx_modal' class='template modal'>
     <div class='modal-header'>
         <button data-button-id="cancel" type='button' class='close' data-dismiss='modal'><span aria-hidden='true'>&times;</span></button>
-        <h1 class='dialog-title'>{{TITLE_H1}}</h1>
+
+        <h1 class='dialog-title'>{{TITLE}}</h1>
     </div>
-    <p style='display: none; color: red; font-weight: bold; padding: 10px;' id='templates_error'>{{NO_FILE_OPEN_ERROR}}</p>
     <div class='modal-body'>
-        
     </div>
     <div class='modal-footer'>
-        <a href='#' class='dialog-button btn primary' data-button-id="ok" data-dismiss='modal'>{{ACCEPT_BUTTON}}</a>
+        <a href='#' class='dialog-button btn danger' data-button-id="cancel" data-dismiss='modal'>{{CANCEL_BTN}}</a>
+        <a name="test" href='#' class='btn danger' data-button-id="test">{{TEST_BTN}}</button>
+        <a name="start" href='#' class='btn danger'>{{START_BTN}}</a>
+        <a name="stop" href='#' class='btn danger'>{{STOP_BTN}}</a>
+        <a href='#' class='dialog-button btn primary' data-button-id="ok" data-dismiss='modal'>{{SAVE_BTN}}</a>
     </div>
 </div>

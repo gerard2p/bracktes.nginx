@@ -15,7 +15,7 @@ define(function (require, exports, module) {
         ExtensionUtils = brackets.getModule("utils/ExtensionUtils"),
 
         moduleDirectory = ExtensionUtils.getModulePath(module),
-        domainModulePath = [moduleDirectory + "domain", moduleDirectory + "nginx-parser"],
+        domainModulePath = [moduleDirectory + "domain"],
         nodeConnection = new NodeConnection(),
         nodeDeferred = new $.Deferred();
 
